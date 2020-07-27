@@ -1,0 +1,149 @@
+#!/usr/bin/env bash
+
+ESUCC=0
+EPROG=1
+EOPTN=2
+
+BACKBACK=
+DELETE_EXISTING=
+VERBOSE=
+
+FUNCTION=backup
+SUFFIX="bak"
+
+SUCC_COL=$(tput setaf 2)
+ERRO_COL=$(tput setaf 1)
+WARN_COL=$(tput setaf 3)
+EMPH_COL=$(tput setaf 4)
+NORM_COL=$(tput sgr0)
+
+[[ -n "$BAK_DEBUG" ]] && set -x
+
+_msg_dbg() {
+  if [[ -n "$VERBOSE" ]]; then
+    printf "%s\n" "$NORM_COL$1"
+    return 0
+  fi
+  return 1
+}
+_msg_inf() { printf "%s\n" "$1"; }
+_msg_wrn() { printf "%s\n" "$WARN_COL$1$NORM_COL" 1>&2; }
+_msg_err() { printf "%s\n" "$ERRO_COL$1$NORM_COL" 1>&2; }
+_msg_ext() { _msg_err "$1, exiting"; exit "$2"; }
+
+_sig_recv() {
+  _msg_ext "Signal recieved" $EPROG
+}
+
+func_backup() {
+  for f in "$@"; do
+    if [[ ! -e "$f" ]]; then
+      _msg_wrn "\"$f\" does not exist, continuing"
+      continue
+    fi
+    f_suff="$f.$SUFFIX"
+    if [[ -n "$BACKBACK" && -e "$f_suff" ]]; then
+      _msg_dbg "Moving existing backup (\"$f_suff\") to backup-backup (\"$f_suff.$SUFFIX\")"
+      mv "$f_suff"{,."$SUFFIX"}
+    fi
+    if [[ -z "$DELETE_EXISTING" ]]; then
+      _msg_dbg "Copying current file (\"$f\") to backup (\"$f_suff\")" || _msg_inf "$f_suff"
+      cp -r "$f"{,."$SUFFIX"}
+    else
+      _msg_dbg "Moving current file (\"$f\") to backup (\"$f_suff\")" || _msg_inf "$f_suff"
+      mv "$f"{,."$SUFFIX"}
+    fi
+  done
+}
+
+func_restore() {
+  for f in "$@"; do
+    if [[ ! -e "$f" ]]; then
+      _msg_wrn "\"$f\" does not exist, continuing"
+      continue
+    fi
+    f_no_suff="${f%.$SUFFIX}"
+    if [[ "$f" == "$f_no_suff" ]]; then
+      _msg_wrn "Suffix \"$SUFFIX\" not found on file \"$f\", continuing"
+      continue
+    fi
+    [[ -e "$f_no_suff" ]] && echo Exists
+    if [[ -n "$BACKBACK" && -e "$f_no_suff" ]]; then
+      _msg_dbg "Moving current file (\"$f_no_suff\") to backup-backup file (\"$f.$SUFFIX\")"
+      mv "$f_no_suff" "$f.$SUFFIX"
+    fi
+    _msg_dbg "Moving backup file (\"$f\") to current file (\"$f_no_suff\")" \
+      || _msg_inf "$f_no_suff"
+    mv "$f" "$f_no_suff"
+    if [[ -n "$BACKBACK" && -e "$f.$SUFFIX" ]]; then
+      _msg_dbg "Moving backup-backup file (\"$f.$SUFFIX\") to backup file (\"$f\")"
+      mv "$f.$SUFFIX" "$f"
+    fi
+  done
+}
+
+_short_help() {
+  _msg_inf "bak --(verbose|delete|restore|backup-backup|suffix <SUFFIX>) [--] [<args...>]"
+  exit $ESUCC
+}
+
+_help() {
+  cat << EOF >> /dev/stdout
+${SUCC_COL}Bak, a simple file backer-upper; usage:${NORM_COL}
+
+    ${WARN_COL}bak ${EMPH_COL}[${WARN_COL}options${EMPH_COL}] [${WARN_COL}--${EMPH_COL}] [${ERRO_COL}<${WARN_COL}args...${ERRO_COL}>${EMPH_COL}]${NORM_COL}
+
+${SUCC_COL}Options:${NORM_COL}
+
+    ${WARN_COL}-h${EMPH_COL}|${WARN_COL}--help${NORM_COL}
+          Show this help info
+    ${WARN_COL}-v${EMPH_COL}|${WARN_COL}--verbose${NORM_COL}
+          Show additional logging and verbose messages
+    ${WARN_COL}-d${EMPH_COL}|${WARN_COL}--delete${NORM_COL}
+          Move files to a backup, instead of copying them
+    ${WARN_COL}-r${EMPH_COL}|${WARN_COL}--restore${NORM_COL}
+          Boolean option specifying that the file args are already backups and 
+          should be restored (as opposed to backing up further)
+    ${WARN_COL}-b${EMPH_COL}|${WARN_COL}--backup-backup${NORM_COL}
+          Make a backup of an existing backup file if it exists.  If ${EMPH_COL}-r${NORM_COL} is 
+          given, move the current file to a backup and move the backup to the 
+          current file
+    ${WARN_COL}-s${EMPH_COL}|${WARN_COL}--suffix <SUFFIX>${NORM_COL}
+          The default suffix is ${EMPH_COL}$SUFFIX${NORM_COL}, use this to 
+          specify a custom suffix
+EOF
+}
+
+main() {
+  trap _sig_recv SIGINT
+
+  argv=()
+  arg_end=
+  [[ $# == 0 ]] && _short_help
+  while [[ -n "$1" ]]; do
+    case "$1" in
+      --) arg_end=true ;;
+      -*)
+        [[ -n "$arg_end" ]] && { argv+=("$1"); continue; }
+        case "$1" in
+          -h|--help) _help ;;
+          -v|--verbose) VERBOSE=true ;;
+          -d|--delete) DELETE_EXISTING=true ;;
+          -r|--restore) FUNCTION=restore ;;
+          -b|--backup-backup) BACKBACK=true ;;
+          -s|--suffix) shift; SUFFIX="$1" ;;
+          *)  _msg_ext "\"$1\" is not a valid option" $EOPTN
+        esac
+        ;;
+      *) argv+=("$1") ;;
+    esac
+    shift
+  done
+
+  ! type "func_$FUNCTION" >&/dev/null \
+    && _msg_ext "\"$FUNCTION\" is not a valid function"
+
+  "func_$FUNCTION" "${argv[@]}"
+}
+
+main "$@"
