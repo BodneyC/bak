@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # Bak
 
 A nice and simple file backer-upper.
@@ -56,7 +58,9 @@ Hello!
 
 This is the help output for further clarification.
 
-```
+__Note__: Options can be given individually (e.g. `-r -d -...`) or together (e.g. `-rd`).
+
+```sh
 Bak, a simple file backer-upper; usage:
 
     bak [options] [--] [<args...>]
@@ -70,13 +74,13 @@ Options:
     -d|--delete
           Move files to a backup, instead of copying them
     -r|--restore
-          Boolean option specifying that the file args are already backups and 
+          Boolean option specifying that the file args are already backups and
           should be restored (as opposed to backing up further)
     -b|--backup-backup
-          Make a backup of an existing backup file if it exists.  If -r is 
-          given, move the current file to a backup and move the backup to the 
+          Make a backup of an existing backup file if it exists.  If -r is
+          given, move the current file to a backup and move the backup to the
           current file
     -s|--suffix <SUFFIX>
-          The default suffix is $SUFFIX, use this to 
+          The default suffix is $SUFFIX, use this to
           specify a custom suffix
 ```

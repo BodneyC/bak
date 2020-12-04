@@ -89,6 +89,7 @@ _short_help() {
 
 _help() {
   cat << EOF >> /dev/stdout
+
 ${SUCC_COL}Bak, a simple file backer-upper; usage:${NORM_COL}
 
     ${WARN_COL}bak ${EMPH_COL}[${WARN_COL}options${EMPH_COL}] [${WARN_COL}--${EMPH_COL}] [${ERRO_COL}<${WARN_COL}args...${ERRO_COL}>${EMPH_COL}]${NORM_COL}
@@ -111,6 +112,7 @@ ${SUCC_COL}Options:${NORM_COL}
     ${WARN_COL}-s${EMPH_COL}|${WARN_COL}--suffix <SUFFIX>${NORM_COL}
           The default suffix is ${EMPH_COL}$SUFFIX${NORM_COL}, use this to 
           specify a custom suffix
+
 EOF
 }
 
@@ -125,15 +127,28 @@ main() {
       --) arg_end=true ;;
       -*)
         [[ -n "$arg_end" ]] && { argv+=("$1"); continue; }
-        case "$1" in
-          -h|--help) _help ;;
-          -v|--verbose) VERBOSE=true ;;
-          -d|--delete) DELETE_EXISTING=true ;;
-          -r|--restore) FUNCTION=restore ;;
-          -b|--backup-backup) BACKBACK=true ;;
-          -s|--suffix) shift; SUFFIX="$1" ;;
-          *)  _msg_ext "\"$1\" is not a valid option" $EOPTN
-        esac
+        break_after_one=true
+        if [[ "${1:1:1}" != '-' ]]; then
+          break_after_one=false
+        fi
+        for (( i=1; i<"${#1}"; i++ )); do
+          _arg="${1:$i:1}"
+          if [[ "$break_after_one" == true ]]; then
+            _arg="${1:2}"
+          fi
+          case "$_arg" in
+            h|help) _help ;;
+            v|verbose) VERBOSE=true ;;
+            d|delete) DELETE_EXISTING=true ;;
+            r|restore) FUNCTION=restore ;;
+            b|backup-backup) BACKBACK=true ;;
+            s|suffix) shift; SUFFIX="$1"; break ;;
+            *)  _msg_ext "\"$_arg\" is not a valid option" $EOPTN
+          esac
+          if [[ "$break_after_one" == true ]]; then
+            break
+          fi
+        done
         ;;
       *) argv+=("$1") ;;
     esac
