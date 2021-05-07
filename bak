@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+VERSION=0.0.2
+
 ESUCC=0
 EPROG=1
 EOPTN=2
@@ -29,10 +31,13 @@ _msg_dbg() {
 _msg_inf() { printf "%s\n" "$1"; }
 _msg_wrn() { printf "%s\n" "$WARN_COL$1$NORM_COL" 1>&2; }
 _msg_err() { printf "%s\n" "$ERRO_COL$1$NORM_COL" 1>&2; }
-_msg_ext() { _msg_err "$1, exiting"; exit "$2"; }
+_msg_ext() {
+  _msg_err "$1, exiting"
+  exit "$2"
+}
 
 _sig_recv() {
-  _msg_ext "Signal recieved" $EPROG
+  _msg_ext "Signal received" $EPROG
 }
 
 func_backup() {
@@ -67,30 +72,38 @@ func_restore() {
       _msg_wrn "Suffix \"$SUFFIX\" not found on file \"$f\", continuing"
       continue
     fi
-    [[ -e "$f_no_suff" ]] && echo Exists
     if [[ -n "$BACKBACK" && -e "$f_no_suff" ]]; then
       _msg_dbg "Moving current file (\"$f_no_suff\") to backup-backup file (\"$f.$SUFFIX\")"
       mv "$f_no_suff" "$f.$SUFFIX"
     fi
     _msg_dbg "Moving backup file (\"$f\") to current file (\"$f_no_suff\")" \
       || _msg_inf "$f_no_suff"
-    mv "$f" "$f_no_suff"
-    if [[ -n "$BACKBACK" && -e "$f.$SUFFIX" ]]; then
-      _msg_dbg "Moving backup-backup file (\"$f.$SUFFIX\") to backup file (\"$f\")"
-      mv "$f.$SUFFIX" "$f"
+    if [[ -z "$DELETE_EXISTING" ]]; then
+      cp -r "$f" "$f_no_suff"
+    else
+      mv "$f" "$f_no_suff"
+      if [[ -n "$BACKBACK" && -e "$f.$SUFFIX" ]]; then
+        _msg_dbg "Moving backup-backup file (\"$f.$SUFFIX\") to backup file (\"$f\")"
+        mv "$f.$SUFFIX" "$f"
+      fi
     fi
   done
 }
 
 _short_help() {
-  _msg_inf "bak --(verbose|delete|restore|backup-backup|suffix <SUFFIX>) [--] [<args...>]"
+  _msg_inf "bak [--(verbose|delete|restore|backup-backup|suffix <SUFFIX>)] [--] [<args...>]"
+  exit $ESUCC
+}
+
+_version() {
+  echo $VERSION
   exit $ESUCC
 }
 
 _help() {
   cat << EOF >> /dev/stdout
 
-${SUCC_COL}Bak, a simple file backer-upper; usage:${NORM_COL}
+${SUCC_COL}Bak (${EMPH_COL}$VERSION${SUCC_COL}), a simple file backer-upper; usage:${NORM_COL}
 
     ${WARN_COL}bak ${EMPH_COL}[${WARN_COL}options${EMPH_COL}] [${WARN_COL}--${EMPH_COL}] [${ERRO_COL}<${WARN_COL}args...${ERRO_COL}>${EMPH_COL}]${NORM_COL}
 
@@ -126,28 +139,32 @@ main() {
     case "$1" in
       --) arg_end=true ;;
       -*)
-        [[ -n "$arg_end" ]] && { argv+=("$1"); continue; }
+        [[ -n "$arg_end" ]] && {
+          argv+=("$1")
+          continue
+        }
         break_after_one=true
-        if [[ "${1:1:1}" != '-' ]]; then
-          break_after_one=false
-        fi
-        for (( i=1; i<"${#1}"; i++ )); do
+        [[ "${1:1:1}" != '-' ]] && break_after_one=false
+        for ((i = 1; i < "${#1}"; i++)); do
           _arg="${1:$i:1}"
-          if [[ "$break_after_one" == true ]]; then
-            _arg="${1:2}"
-          fi
+          [[ "$break_after_one" == true ]] && _arg="${1:2}"
           case "$_arg" in
-            h|help) _help ;;
-            v|verbose) VERBOSE=true ;;
-            d|delete) DELETE_EXISTING=true ;;
-            r|restore) FUNCTION=restore ;;
-            b|backup-backup) BACKBACK=true ;;
-            s|suffix) shift; SUFFIX="$1"; break ;;
-            *)  _msg_ext "\"$_arg\" is not a valid option" $EOPTN
+            v | verbose) VERBOSE=true ;;
+            d | delete) DELETE_EXISTING=true ;;
+            r | restore) FUNCTION=restore ;;
+            b | backup-backup) BACKBACK=true ;;
+            s | suffix)
+              shift
+              SUFFIX="$1"
+              break
+              ;;
+
+            h) _short_help ;;
+            H | help) _help ;;
+            V | version) _version ;;
+            *) _msg_ext "\"$_arg\" is not a valid option" $EOPTN ;;
           esac
-          if [[ "$break_after_one" == true ]]; then
-            break
-          fi
+          [[ "$break_after_one" == true ]] && break
         done
         ;;
       *) argv+=("$1") ;;
