@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-VERSION=0.0.2
+VERSION=0.0.3
 
 ESUCC=0
 EPROG=1
@@ -51,18 +51,24 @@ func_backup() {
       _msg_dbg "Moving existing backup (\"$f_suff\") to backup-backup (\"$f_suff.$SUFFIX\")"
       mv "$f_suff"{,."$SUFFIX"}
     fi
-    if [[ -z "$DELETE_EXISTING" ]]; then
-      _msg_dbg "Copying current file (\"$f\") to backup (\"$f_suff\")" || _msg_inf "$f_suff"
-      cp -r "$f"{,."$SUFFIX"}
-    else
+    if [[ -d "$f_suff" ]]; then
+      rm -rf "$f_suff"
+    fi
+    if [[ -n "$DELETE_EXISTING" ]]; then
       _msg_dbg "Moving current file (\"$f\") to backup (\"$f_suff\")" || _msg_inf "$f_suff"
       mv "$f"{,."$SUFFIX"}
+    else
+      _msg_dbg "Copying current file (\"$f\") to backup (\"$f_suff\")" || _msg_inf "$f_suff"
+      cp -r "$f"{,."$SUFFIX"}
     fi
   done
 }
 
 func_restore() {
   for f in "$@"; do
+    if ! [[ "$f" =~ "$SUFFIX$" ]]; then
+      f="$f.$SUFFIX"
+    fi
     if [[ ! -e "$f" ]]; then
       _msg_wrn "\"$f\" does not exist, continuing"
       continue
@@ -76,16 +82,19 @@ func_restore() {
       _msg_dbg "Moving current file (\"$f_no_suff\") to backup-backup file (\"$f.$SUFFIX\")"
       mv "$f_no_suff" "$f.$SUFFIX"
     fi
+    if [[ -d "$f_no_suff" ]]; then
+      rm -rf "$f_no_suff"
+    fi
     _msg_dbg "Moving backup file (\"$f\") to current file (\"$f_no_suff\")" \
       || _msg_inf "$f_no_suff"
-    if [[ -z "$DELETE_EXISTING" ]]; then
-      cp -r "$f" "$f_no_suff"
-    else
+    if [[ -n "$DELETE_EXISTING" ]]; then
       mv "$f" "$f_no_suff"
       if [[ -n "$BACKBACK" && -e "$f.$SUFFIX" ]]; then
         _msg_dbg "Moving backup-backup file (\"$f.$SUFFIX\") to backup file (\"$f\")"
         mv "$f.$SUFFIX" "$f"
       fi
+    else
+      cp -r "$f" "$f_no_suff"
     fi
   done
 }
