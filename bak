@@ -10,7 +10,6 @@ BACKBACK=
 DELETE_EXISTING=
 VERBOSE=
 
-FUNCTION=backup
 SUFFIX="bak"
 
 SUCC_COL=$(tput setaf 2)
@@ -38,6 +37,27 @@ _msg_ext() {
 
 _sig_recv() {
   _msg_ext "Signal received" $EPROG
+}
+
+func_swap() {
+  _tmp="$(mktemp)"
+  for f in "$@"; do
+    if [[ ! -e "$f" ]]; then
+      _msg_wrn "\"$f\" does not exist, continuing"
+      continue
+    fi
+    f_suff="$f.$SUFFIX"
+    if [[ ! -e "$f_suff" ]]; then
+      _msg_wrn "\"$f_suff\" does not exist, continuing"
+      contin
+    fi
+    mv "$f" "$_tmp"
+    mv "$f_suff" "$f"
+    mv "$_tmp" "$f_suff"
+  done
+  if [[ -f "$_tmp" ]]; then
+    rm "$_tmp"
+  fi
 }
 
 func_backup() {
@@ -131,7 +151,9 @@ ${SUCC_COL}Options:${NORM_COL}
           Make a backup of an existing backup file if it exists.  If ${EMPH_COL}-r${NORM_COL} is 
           given, move the current file to a backup and move the backup to the 
           current file
-    ${WARN_COL}-s${EMPH_COL}|${WARN_COL}--suffix <SUFFIX>${NORM_COL}
+    ${WARN_COL}-s${EMPH_COL}|${WARN_COL}--swap${NORM_COL}
+          Given file.txt, swap file.txt and file.txt.\${suffix}
+    ${WARN_COL}--suffix <SUFFIX>${NORM_COL}
           The default suffix is ${EMPH_COL}$SUFFIX${NORM_COL}, use this to 
           specify a custom suffix
 
@@ -140,6 +162,8 @@ EOF
 
 main() {
   trap _sig_recv SIGINT
+
+  _func=backup
 
   argv=()
   arg_end=
@@ -160,9 +184,10 @@ main() {
           case "$_arg" in
             v | verbose) VERBOSE=true ;;
             d | delete) DELETE_EXISTING=true ;;
-            r | restore) FUNCTION=restore ;;
+            r | restore) _func=restore ;;
             b | backup-backup) BACKBACK=true ;;
-            s | suffix)
+            s | swap) _func=swap ;;
+            suffix)
               shift
               SUFFIX="$1"
               break
@@ -181,10 +206,10 @@ main() {
     shift
   done
 
-  ! type "func_$FUNCTION" >&/dev/null \
-    && _msg_ext "\"$FUNCTION\" is not a valid function"
+  ! type "func_$_func" >&/dev/null \
+    && _msg_ext "\"$_func\" is not a valid function"
 
-  "func_$FUNCTION" "${argv[@]}"
+  "func_$_func" "${argv[@]}"
 }
 
 main "$@"
